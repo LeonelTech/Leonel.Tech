@@ -307,3 +307,122 @@ class VisualDescription(TimestampMixin, Base):
     method: Mapped[str] = mapped_column(String(32))  # local_vision, external_ai
     quality_score: Mapped[float] = mapped_column(default=0.0)
     limitations: Mapped[str | None] = mapped_column(Text)
+
+
+# --- Phase 6: Entities, Assertions, Relationships ---
+
+
+class Entity(TimestampMixin, Base):
+    """An entity in the catalog (section 8: person, lawyer, proceeding…)."""
+
+    __tablename__ = "entities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    identifier: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # person, lawyer, proceeding…
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(512))
+    description: Mapped[str | None] = mapped_column(Text)
+
+
+class Assertion(TimestampMixin, Base):
+    """A cataloged fact with full provenance (section 21.1)."""
+
+    __tablename__ = "assertions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subject_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    predicate: Mapped[str] = mapped_column(String(64), nullable=False)  # works_at, represents…
+    object_entity_id: Mapped[int | None] = mapped_column(ForeignKey("entities.id"))
+    literal_value: Mapped[str | None] = mapped_column(Text)
+
+    source_file_id: Mapped[int | None] = mapped_column(ForeignKey("files.id"))
+    source_page: Mapped[int | None] = mapped_column()
+    source_timestamp_start: Mapped[float | None] = mapped_column()
+    source_timestamp_end: Mapped[float | None] = mapped_column()
+
+    extraction_method: Mapped[str] = mapped_column(String(32), default="manual")
+    confidence: Mapped[str] = mapped_column(String(32), default="unverified")  # enum value
+    review_status: Mapped[str] = mapped_column(String(32), default="pending")
+    limitations: Mapped[str | None] = mapped_column(Text)
+
+
+class Relationship(TimestampMixin, Base):
+    """Connection between entities (section 8.2-8.4)."""
+
+    __tablename__ = "relationships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    target_id: Mapped[int] = mapped_column(ForeignKey("entities.id"), nullable=False)
+    relationship_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    start_date: Mapped[str | None] = mapped_column(String(32))  # ISO 8601
+    end_date: Mapped[str | None] = mapped_column(String(32))
+    role: Mapped[str | None] = mapped_column(String(64))
+    confidence: Mapped[str] = mapped_column(String(32), default="unverified")
+    is_confirmed: Mapped[bool] = mapped_column(default=False)
+
+
+class Chronology(TimestampMixin, Base):
+    """Event in master or entity chronology."""
+
+    __tablename__ = "chronology_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id"), nullable=False)
+    entity_id: Mapped[int | None] = mapped_column(ForeignKey("entities.id"))  # None = master chronology
+    event_date: Mapped[str] = mapped_column(String(32), nullable=False)  # ISO 8601 or fuzzy
+    event_type: Mapped[str] = mapped_column(String(64))  # filing, judgment, communication…
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    source_file_id: Mapped[int | None] = mapped_column(ForeignKey("files.id"))
+    confidence: Mapped[str] = mapped_column(String(32), default="unverified")
+
+
+# --- Phase 8: Integrity & Anomalies ---
+
+
+class IntegrityFinding(TimestampMixin, Base):
+    """Technical indicator warranting review (section 18, INT-001/002)."""
+
+    __tablename__ = "integrity_findings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), nullable=False)
+    anomaly_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), default="info")  # info, low, medium, high
+    tool: Mapped[str] = mapped_column(String(64))  # FFprobe, PDFchecker…
+    tool_version: Mapped[str | None] = mapped_column(String(32))
+    confidence: Mapped[float] = mapped_column(default=0.5)  # 0-1
+    location: Mapped[str | None] = mapped_column(Text)  # page, timestamp, frame range
+    description: Mapped[str] = mapped_column(Text)
+    benign_explanations: Mapped[str | None] = mapped_column(Text)  # JSON list
+    review_status: Mapped[str] = mapped_column(String(32), default="pending")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class Contradiction(TimestampMixin, Base):
+    """Two assertions in conflict, flagged for human review (section 18)."""
+
+    __tablename__ = "contradictions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    assertion_1_id: Mapped[int] = mapped_column(ForeignKey("assertions.id"), nullable=False)
+    assertion_2_id: Mapped[int] = mapped_column(ForeignKey("assertions.id"), nullable=False)
+    conflict_type: Mapped[str] = mapped_column(String(64))  # temporal, factual, named_entity
+    confidence: Mapped[float] = mapped_column(default=0.5)
+    review_status: Mapped[str] = mapped_column(String(32), default="pending")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class Limitation(Base):
+    """Quality/completeness limitation of a file analysis (section 26, ERR-003)."""
+
+    __tablename__ = "limitations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), nullable=False)
+    limitation_type: Mapped[str] = mapped_column(String(64))  # unsupported_content, low_confidence…
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), default="info")
+    suggested_action: Mapped[str | None] = mapped_column(Text)
