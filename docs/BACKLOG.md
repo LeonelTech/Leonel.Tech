@@ -12,6 +12,12 @@ acceptance criteria. Phases follow the master roadmap (section 28).
   path-safety, media intake, non-destructive inventory, SHA-256 hashing,
   verified copy, dedup, manifest (JSON/CSV + self-hash), resumable sessions,
   audit trail.
+- **Phase 4 — Documents (MVP):** native PDF extraction + OCR adapters
+  (Tesseract, PaddleOCR), CNJ/OAB/CPF detection, domain models & database
+  schema for OCR results + regions + corrections.
+- **Phase 5 — Multimedia (MVP):** FFmpeg inspection, audio extraction, 
+  faster-whisper adapter, frame extraction, domain models & database schema
+  for transcripts, segments, speakers, visual descriptions.
 
 ## Phase 2 — remaining hardening
 
@@ -28,19 +34,23 @@ acceptance criteria. Phases follow the master roadmap (section 28).
 - [ ] File-detail page (original/master/working/derived tabs).
 - [ ] Operational status & relevance values with provenance (section 20).
 
-## Phase 4 — Documents & OCR
+## Phase 4 — Documents & OCR (MVP delivered)
 
-- [ ] Native PDF text extraction; OCR adapters (PaddleOCR/Tesseract) behind an
+- [x] Native PDF text extraction; OCR adapters (Tesseract, PaddleOCR) behind
       interface (ARCH-009).
-- [ ] Word/line bounding boxes; `[illegible]` markers; human correction trail.
-- [ ] CNJ process-number / OAB / CPF-CNPJ detection & validation (LEGAL-001).
+- [x] Domain models for OCR results, regions, confidence levels, corrections.
+- [x] CNJ process-number / OAB / CPF-CNPJ detection in extracted text (LEGAL-001).
+- [ ] **Remaining:** Word/line bounding boxes UI, human correction UI, document
+      classification (pleading vs decision vs police report), word-level timestamps.
 
-## Phase 5 — Multimedia
+## Phase 5 — Multimedia (MVP delivered)
 
-- [ ] FFmpeg/FFprobe inspection; audio extraction to working copies.
-- [ ] Local transcription (faster-whisper) with word timestamps → TXT/SRT/VTT/JSON.
-- [ ] Speaker diarization with neutral labels; reviewed identity mapping.
-- [ ] Frame extraction, gallery, timestamp-linked navigation.
+- [x] FFmpeg/FFprobe inspection, audio extraction to working copies.
+- [x] Local transcription via faster-whisper adapter with segment timestamps.
+- [x] Domain models for transcripts, segments, speakers, frame metadata.
+- [x] Frame extraction and keyframe detection.
+- [ ] **Remaining:** Speaker diarization review UI, visual description generation,
+      timestamp-linked navigation in UI, gallery views.
 
 ## Phase 6 — Dossiers & cross-reference
 

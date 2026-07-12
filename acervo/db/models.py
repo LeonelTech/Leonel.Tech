@@ -179,3 +179,131 @@ class AuditEvent(Base):
     session_identifier: Mapped[str | None] = mapped_column(String(32))
     # Structured JSON payload as text (SEC-007: never log file contents/secrets).
     detail_json: Mapped[str | None] = mapped_column(Text)
+
+
+# --- Phase 4: OCR & Documents ---
+
+
+class OcrResult(TimestampMixin, Base):
+    """OCR extraction from a file (Phase 4)."""
+
+    __tablename__ = "ocr_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), nullable=False)
+    method: Mapped[str] = mapped_column(String(32), nullable=False)  # native_pdf, tesseract, …
+    method_version: Mapped[str] = mapped_column(String(32))
+    model_version: Mapped[str | None] = mapped_column(String(64))
+    full_text: Mapped[str | None] = mapped_column(Text)
+    quality_score: Mapped[float] = mapped_column(default=0.0)  # 0-100
+    duration_seconds: Mapped[float | None] = mapped_column()
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class OcrRegion(Base):
+    """Bounding box + text for a detected region (OCR-005)."""
+
+    __tablename__ = "ocr_regions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ocr_result_id: Mapped[int] = mapped_column(ForeignKey("ocr_results.id"), nullable=False)
+    page: Mapped[int | None] = mapped_column()
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    x0: Mapped[float | None] = mapped_column()  # left
+    y0: Mapped[float | None] = mapped_column()  # top
+    x1: Mapped[float | None] = mapped_column()  # right
+    y1: Mapped[float | None] = mapped_column()  # bottom
+    confidence: Mapped[str] = mapped_column(String(16), default="medium")  # high/medium/low/illegible
+    is_partial: Mapped[bool] = mapped_column(default=False)
+
+
+class OcrCorrection(TimestampMixin, Base):
+    """Human correction of OCR with audit trail (OCR-008)."""
+
+    __tablename__ = "ocr_corrections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ocr_region_id: Mapped[int] = mapped_column(ForeignKey("ocr_regions.id"), nullable=False)
+    original_text: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected_text: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+
+
+# --- Phase 5: Multimedia ---
+
+
+class TranscriptResult(TimestampMixin, Base):
+    """Transcription of audio/video (Phase 5)."""
+
+    __tablename__ = "transcript_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), nullable=False)
+    method: Mapped[str] = mapped_column(String(32), nullable=False)  # faster_whisper, …
+    method_version: Mapped[str] = mapped_column(String(32))
+    model_version: Mapped[str | None] = mapped_column(String(64))
+    language: Mapped[str] = mapped_column(String(16), default="pt-BR")
+    duration_seconds: Mapped[float | None] = mapped_column()
+    quality_score: Mapped[float] = mapped_column(default=0.0)
+    diarization_used: Mapped[bool] = mapped_column(default=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class TranscriptSegment(Base):
+    """One segment of a transcript (typically sentence-level, AV-004)."""
+
+    __tablename__ = "transcript_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    transcript_id: Mapped[int] = mapped_column(ForeignKey("transcript_results.id"), nullable=False)
+    segment_number: Mapped[int] = mapped_column()
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    start_seconds: Mapped[float] = mapped_column()
+    end_seconds: Mapped[float] = mapped_column()
+    speaker: Mapped[str] = mapped_column(String(64), default="SPEAKER-000")  # neutral ID
+    confidence: Mapped[float] = mapped_column(default=0.5)  # 0-1
+
+
+class Speaker(Base):
+    """A speaker identity mapping (AV-006)."""
+
+    __tablename__ = "speakers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    transcript_id: Mapped[int] = mapped_column(ForeignKey("transcript_results.id"), nullable=False)
+    speaker_label: Mapped[str] = mapped_column(String(64), nullable=False)  # SPEAKER-000
+    reviewed_as: Mapped[str | None] = mapped_column(String(256))  # "John Doe" after review
+    reviewed_by: Mapped[str | None] = mapped_column(String(128))
+    review_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reference_excerpt: Mapped[str | None] = mapped_column(Text)  # sample for identity confirmation
+
+
+class Frame(Base):
+    """Extracted video frame metadata (AV-007)."""
+
+    __tablename__ = "frames"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), nullable=False)
+    frame_number: Mapped[int] = mapped_column()
+    timestamp_seconds: Mapped[float] = mapped_column()
+    frame_path: Mapped[str | None] = mapped_column(Text)  # path to extracted thumbnail
+    width: Mapped[int | None] = mapped_column()
+    height: Mapped[int | None] = mapped_column()
+    has_scene_change: Mapped[bool] = mapped_column(default=False)
+    visual_description: Mapped[str | None] = mapped_column(Text)  # (AV-009)
+
+
+class VisualDescription(TimestampMixin, Base):
+    """Objective visual description of media (AV-009, AV-010)."""
+
+    __tablename__ = "visual_descriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("files.id"), nullable=False)
+    frame_id: Mapped[int | None] = mapped_column(ForeignKey("frames.id"))
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    method: Mapped[str] = mapped_column(String(32))  # local_vision, external_ai
+    quality_score: Mapped[float] = mapped_column(default=0.0)
+    limitations: Mapped[str | None] = mapped_column(Text)
