@@ -1,0 +1,17 @@
+# Core runtime dependencies — pinned lower bounds (ARCH-001..005)
+# Recommended runtime: Python 3.12+ (developed/tested on 3.11).
+sqlalchemy>=2.0
+fastapi>=0.110
+pydantic>=2.6
+pydantic-settings>=2.2
+uvicorn[standard]>=0.29
+
+# Dev / test
+pytest>=8.0
+httpx>=0.27
+
+# --- Deferred to later phases (see docs/BACKLOG.md), not required for MVP core ---
+# alembic>=1.13          # migrations (Phase 1 hardening)
+# faster-whisper         # local transcription (Phase 5)
+# paddleocr / pytesseract# local OCR (Phase 4)
+# blake3                 # optional fast internal hashing (ARCH-011)

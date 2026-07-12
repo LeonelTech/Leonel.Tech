@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acervo"
+version = "0.2.0"
+description = "Local-first legal, evidentiary and investigative cataloging platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "sqlalchemy>=2.0",
+    "fastapi>=0.110",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "uvicorn[standard]>=0.29",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+acervo = "acervo.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["acervo*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.package-data]
+acervo = ["i18n/locales/*.json", "web/*.html", "web/*.css"]

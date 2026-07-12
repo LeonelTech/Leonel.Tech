@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Test / tooling
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local runtime data (databases, downloaded models, logs)
+*.sqlite3
+.acervo/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
