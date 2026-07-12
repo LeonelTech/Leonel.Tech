@@ -1,0 +1,193 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                          ACERVO — Leia-me                                  ║
+║      Plataforma Local de Catalogação Jurídica, Probatória e Investigativa  ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+PASSO A PASSO: BAIXAR, INSTALAR E TESTAR
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. REQUISITOS DO SISTEMA
+
+   • Python 3.11 ou superior (3.12+ recomendado)
+   • pip (gerenciador de pacotes Python)
+   • 500 MB de espaço em disco (incluindo dependências)
+
+   Verificar versão do Python:
+   $ python3 --version
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2. CLONAR O REPOSITÓRIO
+
+   $ git clone <URL do repositório> Leonel.Tech
+   $ cd Leonel.Tech
+
+   Ou, se já está dentro do repositório:
+   $ pwd
+   /home/user/Leonel.Tech
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3. CRIAR UM AMBIENTE VIRTUAL (RECOMENDADO)
+
+   Criar ambiente isolado para a aplicação:
+   $ python3 -m venv .venv
+
+   Ativar o ambiente:
+   • No Linux/macOS:
+     $ source .venv/bin/activate
+
+   • No Windows (PowerShell):
+     $ .venv\Scripts\Activate.ps1
+
+   • No Windows (cmd):
+     $ .venv\Scripts\activate.bat
+
+   Você verá o prompt mudar para:
+   (.venv) $
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4. INSTALAR AS DEPENDÊNCIAS
+
+   Com o ambiente virtual ativado:
+   $ pip install -r requirements.txt
+
+   Isso instalará:
+   • sqlalchemy (banco de dados)
+   • fastapi (API web)
+   • pydantic (validação de dados)
+   • uvicorn (servidor web)
+   • pytest (testes)
+   • httpx (cliente HTTP para testes)
+
+   Aguarde alguns minutos. Você verá mensagens como:
+   "Collecting sqlalchemy..."
+   "Successfully installed..."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5. EXECUTAR OS TESTES (VERIFICAR QUE TUDO FUNCIONA)
+
+   Com o ambiente ativado:
+   $ python -m pytest
+
+   Saída esperada:
+   ========================= 25 passed in 2.00s =========================
+
+   Se todos os 25 testes passarem, a instalação está OK!
+
+   Para mais detalhes dos testes:
+   $ python -m pytest -v
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6. EXECUTAR UMA SESSÃO DE PRESERVAÇÃO (TESTE PRÁTICO)
+
+   Criar pastas de teste:
+   $ mkdir -p /tmp/demo_src /tmp/demo_dst
+   $ echo "conteúdo de exemplo" > /tmp/demo_src/arquivo.txt
+
+   Executar a catalogação:
+   $ python -m acervo.cli preserve \
+     --collection "Caso Teste" \
+     --source /tmp/demo_src \
+     --destination /tmp/demo_dst
+
+   Saída esperada:
+   Session:      CAT-2026-000001
+   Discovered:   1
+   Validated:    1
+   Duplicates:   0
+   Quarantined:  0
+   Bytes:        19
+   Manifest:     /tmp/demo_dst/00_COLLECTION_CONTROL/manifest.json
+
+   Verificar os arquivos criados:
+   $ find /tmp/demo_dst -type f
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7. INICIAR O SERVIDOR WEB LOCAL (OPCIONAL)
+
+   $ python -m acervo.cli serve
+
+   Saída esperada:
+   INFO:     Uvicorn running on http://127.0.0.1:8787
+   INFO:     Application startup complete
+
+   Abrir no navegador:
+   • Acesse: http://127.0.0.1:8787
+   • Clique em "Iniciar sessão"
+   • Preencha os caminhos e execute a catalogação
+
+   Para parar o servidor:
+   Pressione Ctrl+C no terminal
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. DESATIVAR O AMBIENTE VIRTUAL
+
+   Quando terminar:
+   $ deactivate
+
+   Você voltará ao prompt normal.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ESTRUTURA DO PROJETO
+
+  acervo/
+  ├── config.py           Configuração da aplicação
+  ├── domain/             Lógica pura (hashing, estados, caminhos)
+  ├── db/                 Banco de dados (SQLAlchemy)
+  ├── services/           Serviços (preservação, inventário, manifesto)
+  ├── api/                API (FastAPI + rotas)
+  ├── i18n/               Idiomas (pt-BR, en-US)
+  ├── web/                Interface web
+  ├── cli.py              Linha de comando
+  └── main.py             Aplicação FastAPI
+
+  tests/                  Testes automatizados (25 testes)
+  docs/                   Documentação técnica
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SOLUÇÃO DE PROBLEMAS
+
+❌ Erro: "ModuleNotFoundError: No module named 'acervo'"
+   ✓ Certifique-se de estar dentro do diretório Leonel.Tech
+   ✓ Verifique se o ambiente virtual está ativado
+
+❌ Erro: "Permission denied" (Linux/Mac)
+   ✓ Tente adicionar 'sudo' (não recomendado em venv):
+     $ sudo python -m pytest
+
+❌ Testes falhando
+   ✓ Verifique as dependências:
+     $ pip list | grep -E "sqlalchemy|fastapi|pydantic"
+   ✓ Reinstale:
+     $ pip install --upgrade -r requirements.txt
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DOCUMENTAÇÃO ADICIONAL
+
+  • README.md             Visão geral do projeto
+  • docs/ARCHITECTURE.md  Decisões arquiteturais
+  • docs/STATE_MACHINE.md Máquina de estados de arquivos
+  • docs/BACKLOG.md       Funcionalidades futuras por fase
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PRÓXIMOS PASSOS
+
+1. Execute os testes: python -m pytest
+2. Teste a CLI: python -m acervo.cli preserve --help
+3. Explore o servidor web: python -m acervo.cli serve
+4. Leia a documentação: cat README.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Criado em julho de 2026 — Acervo v0.2.0
