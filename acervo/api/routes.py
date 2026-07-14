@@ -8,10 +8,23 @@ from sqlalchemy import select
 from acervo import __version__
 from acervo.api import schemas
 from acervo.db.base import session_scope
-from acervo.db.models import CatalogingSession, Collection, File, SourceMedia
+from acervo.db.models import (
+    CatalogingSession,
+    Collection,
+    Entity,
+    Assertion,
+    Relationship,
+    File,
+    SourceMedia,
+    IntegrityFinding,
+    Contradiction,
+)
+from acervo.domain.entities import EntityKind, ConfidenceLevel
 from acervo.domain.paths import PathSafetyError
 from acervo.i18n import AVAILABLE_LOCALES, DEFAULT_LOCALE, load_locale
 from acervo.services import sessions as svc
+from acervo.services import dossiers as dossier_svc
+from acervo.services import integrity as integrity_svc
 
 router = APIRouter()
 
@@ -141,3 +154,215 @@ def list_files(identifier: str) -> schemas.FileListResponse:
         return schemas.FileListResponse(
             session_identifier=identifier, file_count=len(rows), files=rows
         )
+
+
+# ===== Phase 6: Dossiers =====
+
+
+@router.post("/entities", response_model=schemas.EntityResponse)
+def create_entity(req: schemas.CreateEntityRequest) -> schemas.EntityResponse:
+    with session_scope() as session:
+        col = _get_collection(session, req.collection_identifier)
+        try:
+            kind = EntityKind(req.kind)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid entity kind: {req.kind}")
+
+        entity = dossier_svc.create_entity(
+            session, col, kind, req.name, req.description
+        )
+        return schemas.EntityResponse(
+            identifier=entity.identifier,
+            kind=entity.kind,
+            name=entity.name,
+            display_name=entity.display_name,
+            description=entity.description,
+        )
+
+
+@router.get("/entities/{collection_identifier}", response_model=list[schemas.EntityResponse])
+def list_entities(collection_identifier: str) -> list[schemas.EntityResponse]:
+    with session_scope() as session:
+        col = _get_collection(session, collection_identifier)
+        entities = session.execute(
+            select(Entity).where(Entity.collection_id == col.id).order_by(Entity.name)
+        ).scalars().all()
+
+        return [
+            schemas.EntityResponse(
+                identifier=e.identifier,
+                kind=e.kind,
+                name=e.name,
+                display_name=e.display_name,
+                description=e.description,
+            )
+            for e in entities
+        ]
+
+
+@router.get("/entities/{collection_identifier}/{entity_identifier}")
+def get_entity_dossier(
+    collection_identifier: str, entity_identifier: str
+) -> schemas.DossierResponse:
+    with session_scope() as session:
+        col = _get_collection(session, collection_identifier)
+        entity = session.execute(
+            select(Entity).where(
+                Entity.collection_id == col.id,
+                Entity.identifier == entity_identifier
+            )
+        ).scalar_one_or_none()
+
+        if entity is None:
+            raise HTTPException(status_code=404, detail="entity not found")
+
+        dossier = dossier_svc.get_entity_dossier(session, entity)
+
+        assertions = [
+            schemas.AssertionResponse(
+                subject_identifier=entity_identifier,
+                predicate=a.predicate,
+                object_entity_identifier=None,
+                literal_value=a.literal_value,
+                confidence=a.confidence,
+                extraction_method=a.extraction_method,
+                review_status=a.review_status,
+            )
+            for a in dossier["assertions"]
+        ]
+
+        relationships = [
+            schemas.RelationshipResponse(
+                source_identifier=entity_identifier,
+                target_identifier="",  # Would need to fetch target entity
+                relationship_type=r.relationship_type,
+                role=r.role,
+                confidence=r.confidence,
+            )
+            for r in dossier["relationships"]
+        ]
+
+        return schemas.DossierResponse(
+            entity=schemas.EntityResponse(
+                identifier=entity.identifier,
+                kind=entity.kind,
+                name=entity.name,
+                display_name=entity.display_name,
+                description=entity.description,
+            ),
+            assertions=assertions,
+            relationships=relationships,
+        )
+
+
+@router.post("/assertions", response_model=schemas.AssertionResponse)
+def add_assertion(req: schemas.AddAssertionRequest) -> schemas.AssertionResponse:
+    with session_scope() as session:
+        col = _get_collection(session, req.collection_identifier)
+        subject = session.execute(
+            select(Entity).where(
+                Entity.collection_id == col.id,
+                Entity.identifier == req.subject_identifier
+            )
+        ).scalar_one_or_none()
+
+        if subject is None:
+            raise HTTPException(status_code=404, detail="subject entity not found")
+
+        try:
+            confidence = ConfidenceLevel(req.confidence)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid confidence: {req.confidence}")
+
+        object_entity = None
+        if req.object_entity_identifier:
+            object_entity = session.execute(
+                select(Entity).where(
+                    Entity.collection_id == col.id,
+                    Entity.identifier == req.object_entity_identifier
+                )
+            ).scalar_one_or_none()
+
+        assertion = dossier_svc.add_assertion(
+            session,
+            subject,
+            req.predicate,
+            object_entity=object_entity,
+            literal_value=req.literal_value,
+            confidence=confidence,
+            extraction_method=req.extraction_method,
+        )
+
+        return schemas.AssertionResponse(
+            subject_identifier=req.subject_identifier,
+            predicate=assertion.predicate,
+            object_entity_identifier=req.object_entity_identifier,
+            literal_value=assertion.literal_value,
+            confidence=assertion.confidence,
+            extraction_method=assertion.extraction_method,
+            review_status=assertion.review_status,
+        )
+
+
+# ===== Phase 8: Integrity =====
+
+
+@router.get("/integrity/findings")
+def list_integrity_findings(
+    collection_identifier: str | None = None, severity: str | None = None
+) -> list[schemas.IntegrityFindingResponse]:
+    with session_scope() as session:
+        query = select(IntegrityFinding)
+
+        if collection_identifier:
+            col = _get_collection(session, collection_identifier)
+            query = query.where(File.collection_id == col.id).join(File)
+
+        if severity:
+            query = query.where(IntegrityFinding.severity == severity)
+
+        findings = session.execute(query.order_by(IntegrityFinding.id.desc())).scalars().all()
+
+        return [
+            schemas.IntegrityFindingResponse(
+                file_identifier="",  # Would need to fetch file
+                anomaly_kind=f.anomaly_kind,
+                severity=f.severity,
+                tool=f.tool,
+                confidence=f.confidence,
+                description=f.description,
+                location=f.location,
+                benign_explanations=[] if not f.benign_explanations else __import__('json').loads(f.benign_explanations),
+                review_status=f.review_status,
+            )
+            for f in findings
+        ]
+
+
+@router.get("/integrity/contradictions")
+def list_contradictions(
+    collection_identifier: str | None = None,
+) -> list[schemas.ContradictionResponse]:
+    with session_scope() as session:
+        if collection_identifier:
+            col = _get_collection(session, collection_identifier)
+            query = select(Contradiction).join(
+                Assertion, Contradiction.assertion_1_id == Assertion.id
+            ).where(Assertion.subject.has(Entity.collection_id == col.id))
+        else:
+            query = select(Contradiction)
+
+        contradictions = session.execute(query.order_by(Contradiction.id.desc())).scalars().all()
+
+        return [
+            schemas.ContradictionResponse(
+                assertion_1_subject="",
+                assertion_1_predicate="",
+                assertion_2_subject="",
+                assertion_2_predicate="",
+                conflict_type=c.conflict_type,
+                confidence=c.confidence,
+                review_status=c.review_status,
+            )
+            for c in contradictions
+        ]

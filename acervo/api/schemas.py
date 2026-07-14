@@ -73,3 +73,89 @@ class FileListResponse(BaseModel):
     session_identifier: str
     file_count: int
     files: list[FileRow]
+
+
+# === Phase 6: Dossiers ===
+
+
+class CreateEntityRequest(BaseModel):
+    collection_identifier: str
+    kind: str  # person, lawyer, proceeding, etc.
+    name: str = Field(min_length=1, max_length=512)
+    description: str | None = None
+
+
+class EntityResponse(BaseModel):
+    identifier: str
+    kind: str
+    name: str
+    display_name: str | None = None
+    description: str | None = None
+
+
+class AddAssertionRequest(BaseModel):
+    collection_identifier: str
+    subject_identifier: str  # entity identifier
+    predicate: str = Field(min_length=1, max_length=64)
+    object_entity_identifier: str | None = None
+    literal_value: str | None = None
+    confidence: str = "unverified"  # unverified, probable, inferred, confirmed
+    extraction_method: str = "manual"  # manual, ocr, nlp, external_ai
+
+
+class AssertionResponse(BaseModel):
+    subject_identifier: str
+    predicate: str
+    object_entity_identifier: str | None = None
+    literal_value: str | None = None
+    confidence: str
+    extraction_method: str
+    review_status: str
+
+
+class LinkEntitiesRequest(BaseModel):
+    collection_identifier: str
+    source_identifier: str
+    target_identifier: str
+    relationship_type: str = Field(min_length=1, max_length=64)
+    role: str | None = None
+    confidence: str = "unverified"
+
+
+class RelationshipResponse(BaseModel):
+    source_identifier: str
+    target_identifier: str
+    relationship_type: str
+    role: str | None = None
+    confidence: str
+
+
+class DossierResponse(BaseModel):
+    entity: EntityResponse
+    assertions: list[AssertionResponse]
+    relationships: list[RelationshipResponse]
+
+
+# === Phase 8: Integrity ===
+
+
+class IntegrityFindingResponse(BaseModel):
+    file_identifier: str
+    anomaly_kind: str
+    severity: str  # info, low, medium, high
+    tool: str
+    confidence: float
+    description: str
+    location: str | None = None
+    benign_explanations: list[str] | None = None
+    review_status: str
+
+
+class ContradictionResponse(BaseModel):
+    assertion_1_subject: str
+    assertion_1_predicate: str
+    assertion_2_subject: str
+    assertion_2_predicate: str
+    conflict_type: str
+    confidence: float
+    review_status: str
