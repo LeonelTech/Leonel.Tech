@@ -159,3 +159,22 @@ class ContradictionResponse(BaseModel):
     conflict_type: str
     confidence: float
     review_status: str
+
+
+# === Relationships & Chronology ===
+
+
+class AddChronologyRequest(BaseModel):
+    collection_identifier: str
+    event_date: str  # ISO 8601 or fuzzy date
+    event_type: str
+    description: str
+    entity_identifier: str | None = None  # None = master chronology
+
+
+class ChronologyResponse(BaseModel):
+    event_date: str
+    event_type: str
+    description: str
+    entity_identifier: str | None = None
+    confidence: str = "unverified"

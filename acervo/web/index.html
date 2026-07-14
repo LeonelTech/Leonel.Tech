@@ -558,6 +558,80 @@
         </div>
         <button class="btn-primary" id="addAssertionBtn">Adicionar Assertion</button>
       </div>
+
+      <div class="card">
+        <h2>Criar Relacionamento</h2>
+        <p style="color: var(--fg-secondary); margin: 0 0 1.5rem;">
+          Estabeleça relacionamentos entre entidades (representa, trabalha em, etc).
+        </p>
+        <div class="form-row">
+          <div>
+            <label for="relSource">Entidade Origem</label>
+            <select id="relSource">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div>
+            <label for="relTarget">Entidade Destino</label>
+            <select id="relTarget">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="relType">Tipo de Relacionamento</label>
+            <input id="relType" type="text" placeholder="Ex: represents, employed_by" />
+          </div>
+          <div>
+            <label for="relRole">Papel (opcional)</label>
+            <input id="relRole" type="text" placeholder="Ex: defense_counsel" />
+          </div>
+        </div>
+        <button class="btn-primary" id="createRelBtn">Criar Relacionamento</button>
+      </div>
+
+      <div class="card">
+        <h2>Adicionar Evento à Cronologia</h2>
+        <p style="color: var(--fg-secondary); margin: 0 0 1.5rem;">
+          Registre eventos para a entidade ou cronologia geral do acervo.
+        </p>
+        <div class="form-row">
+          <div>
+            <label for="eventEntity">Entidade (opcional)</label>
+            <select id="eventEntity">
+              <option value="">— Cronologia Geral —</option>
+            </select>
+          </div>
+          <div>
+            <label for="eventDate">Data (ISO 8601)</label>
+            <input id="eventDate" type="date" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label for="eventType">Tipo de Evento</label>
+            <input id="eventType" type="text" placeholder="Ex: filing, judgment, testimony" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="eventDesc">Descrição</label>
+          <textarea id="eventDesc" placeholder="Descrição do evento..."></textarea>
+        </div>
+        <button class="btn-primary" id="addEventBtn">Adicionar Evento</button>
+      </div>
+
+      <div class="card">
+        <h2>Timeline</h2>
+        <p style="color: var(--fg-secondary); margin: 0 0 1.5rem;">
+          Cronologia de eventos ordenados por data.
+        </p>
+        <div class="timeline" id="timeline">
+          <div style="text-align: center; color: var(--fg-secondary); padding: 2rem;">
+            Nenhum evento registrado
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- TAB: INTEGRITY -->
@@ -754,6 +828,10 @@
       }
     }
 
+    // ===== State Management =====
+    let currentCollection = 'Demo-Collection';
+    let entities = [];
+
     // ===== Entity Management =====
     $('createEntityBtn').addEventListener('click', async () => {
       const kind = $('entityKind').value;
@@ -766,20 +844,177 @@
       }
 
       try {
-        // Call backend to create entity
-        alert('✅ Entidade criada: ' + name);
+        const entity = await apiCall('/entities', 'POST', {
+          collection_identifier: currentCollection,
+          kind,
+          name,
+          description: description || null,
+        });
+        alert('✅ Entidade criada: ' + entity.identifier);
         $('entityName').value = '';
         $('entityDesc').value = '';
-        renderEntities();
+        $('entityKind').value = 'person';
+        await renderEntities();
+        updateEntitySelects();
       } catch (err) {
         console.error('Entity creation error:', err);
       }
     });
 
-    function renderEntities() {
+    async function renderEntities() {
       const list = $('entityList');
-      // Placeholder: show empty state
-      list.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--fg-secondary); padding: 2rem;">Carregando entidades...</div>';
+      try {
+        entities = await apiCall(`/entities/${currentCollection}`, 'GET');
+        if (entities.length === 0) {
+          list.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--fg-secondary); padding: 2rem;">Nenhuma entidade criada</div>';
+          return;
+        }
+        list.innerHTML = entities.map(e => `
+          <div class="entity-card">
+            <h3>${e.name}</h3>
+            <span class="entity-kind">${e.kind.toUpperCase()}</span>
+            <div class="entity-meta">ID: ${e.identifier}</div>
+            ${e.description ? `<p style="font-size: 0.9rem; margin: 0.5rem 0;">${e.description}</p>` : ''}
+            <button class="btn-sm btn-secondary" style="margin-top: 0.5rem;" onclick="window.viewDossier('${e.identifier}')">Ver Dossier</button>
+          </div>
+        `).join('');
+      } catch (err) {
+        list.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: red;">Erro ao carregar entidades</div>';
+      }
+    }
+
+    function updateEntitySelects() {
+      const subjects = [$('assertionSubject'), $('relSource'), $('relTarget'), $('eventEntity')];
+      subjects.forEach(select => {
+        const currentValue = select.value;
+        const optionsHtml = entities.map(e =>
+          `<option value="${e.identifier}">${e.name} (${e.kind})</option>`
+        ).join('');
+        select.innerHTML = '<option value="">— Selecione —</option>' + optionsHtml;
+        select.value = currentValue || '';
+      });
+    }
+
+    window.viewDossier = async function(entityId) {
+      try {
+        const dossier = await apiCall(`/entities/${currentCollection}/${entityId}`, 'GET');
+        console.log('Dossier:', dossier);
+        alert('📋 Dossier carregado (veja console)');
+      } catch (err) {
+        console.error('Dossier error:', err);
+      }
+    };
+
+    // ===== Assertion Management =====
+    $('addAssertionBtn').addEventListener('click', async () => {
+      const subject = $('assertionSubject').value.trim();
+      const predicate = $('assertionPredicate').value.trim();
+      const value = $('assertionValue').value.trim();
+      const confidence = $('assertionConfidence').value;
+
+      if (!subject || !predicate) {
+        alert('Por favor, preencha sujeito e predicado');
+        return;
+      }
+
+      try {
+        await apiCall('/assertions', 'POST', {
+          collection_identifier: currentCollection,
+          subject_identifier: subject,
+          predicate,
+          literal_value: value || null,
+          confidence,
+          extraction_method: 'manual',
+        });
+        alert('✅ Assertion adicionada');
+        $('assertionPredicate').value = '';
+        $('assertionValue').value = '';
+        $('assertionSubject').value = '';
+      } catch (err) {
+        console.error('Assertion error:', err);
+      }
+    });
+
+    // ===== Relationship Management =====
+    $('createRelBtn').addEventListener('click', async () => {
+      const source = $('relSource').value.trim();
+      const target = $('relTarget').value.trim();
+      const type = $('relType').value.trim();
+      const role = $('relRole').value.trim();
+
+      if (!source || !target || !type) {
+        alert('Por favor, preencha origem, destino e tipo');
+        return;
+      }
+
+      try {
+        await apiCall('/relationships', 'POST', {
+          collection_identifier: currentCollection,
+          source_identifier: source,
+          target_identifier: target,
+          relationship_type: type,
+          role: role || null,
+          confidence: 'unverified',
+        });
+        alert('✅ Relacionamento criado');
+        $('relType').value = '';
+        $('relRole').value = '';
+        $('relSource').value = '';
+        $('relTarget').value = '';
+      } catch (err) {
+        console.error('Relationship error:', err);
+      }
+    });
+
+    // ===== Chronology Management =====
+    $('addEventBtn').addEventListener('click', async () => {
+      const entity = $('eventEntity').value.trim();
+      const date = $('eventDate').value.trim();
+      const type = $('eventType').value.trim();
+      const desc = $('eventDesc').value.trim();
+
+      if (!date || !type || !desc) {
+        alert('Por favor, preencha data, tipo e descrição');
+        return;
+      }
+
+      try {
+        await apiCall('/chronology', 'POST', {
+          collection_identifier: currentCollection,
+          event_date: date,
+          event_type: type,
+          description: desc,
+          entity_identifier: entity || null,
+        });
+        alert('✅ Evento adicionado');
+        $('eventDate').value = '';
+        $('eventType').value = '';
+        $('eventDesc').value = '';
+        await renderTimeline();
+      } catch (err) {
+        console.error('Chronology error:', err);
+      }
+    });
+
+    async function renderTimeline() {
+      const timeline = $('timeline');
+      try {
+        const events = await apiCall(`/chronology/${currentCollection}`, 'GET');
+        if (events.length === 0) {
+          timeline.innerHTML = '<div style="text-align: center; color: var(--fg-secondary); padding: 2rem;">Nenhum evento registrado</div>';
+          return;
+        }
+        timeline.innerHTML = events.map(e => `
+          <div class="timeline-item">
+            <div class="timeline-date">${e.event_date}</div>
+            <div class="timeline-event"><strong>${e.event_type}</strong></div>
+            <div class="timeline-event">${e.description}</div>
+            ${e.entity_identifier ? `<div style="font-size: 0.85rem; color: var(--fg-secondary);">📌 ${e.entity_identifier}</div>` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        timeline.innerHTML = '<div style="color: red;">Erro ao carregar cronologia</div>';
+      }
     }
 
     // ===== Preservation Session =====
@@ -816,7 +1051,25 @@
     });
 
     // Initialize
-    applyLocale('pt-BR');
+    async function initApp() {
+      applyLocale('pt-BR');
+      try {
+        // Create demo collection if needed
+        const col = await apiCall('/collections', 'POST', {
+          name: 'Demo Collection',
+          description: 'Acervo de demonstração'
+        });
+        currentCollection = col.identifier;
+      } catch (err) {
+        console.log('Collection already exists or error:', err.message);
+        currentCollection = 'Demo Collection';
+      }
+      renderEntities();
+      updateEntitySelects();
+      renderTimeline();
+    }
+
+    initApp();
   </script>
 </body>
 </html>

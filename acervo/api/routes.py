@@ -14,6 +14,7 @@ from acervo.db.models import (
     Entity,
     Assertion,
     Relationship,
+    Chronology,
     File,
     SourceMedia,
     IntegrityFinding,
@@ -365,4 +366,150 @@ def list_contradictions(
                 review_status=c.review_status,
             )
             for c in contradictions
+        ]
+
+
+# ===== Relationships & Chronology =====
+
+
+@router.post("/relationships", response_model=schemas.RelationshipResponse)
+def link_entities(req: schemas.LinkEntitiesRequest) -> schemas.RelationshipResponse:
+    with session_scope() as session:
+        col = _get_collection(session, req.collection_identifier)
+
+        source = session.execute(
+            select(Entity).where(
+                Entity.collection_id == col.id,
+                Entity.identifier == req.source_identifier
+            )
+        ).scalar_one_or_none()
+
+        if source is None:
+            raise HTTPException(status_code=404, detail="source entity not found")
+
+        target = session.execute(
+            select(Entity).where(
+                Entity.collection_id == col.id,
+                Entity.identifier == req.target_identifier
+            )
+        ).scalar_one_or_none()
+
+        if target is None:
+            raise HTTPException(status_code=404, detail="target entity not found")
+
+        try:
+            confidence = ConfidenceLevel(req.confidence)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid confidence: {req.confidence}")
+
+        rel = dossier_svc.link_entities(
+            session,
+            source,
+            target,
+            req.relationship_type,
+            role=req.role,
+            confidence=confidence,
+        )
+
+        return schemas.RelationshipResponse(
+            source_identifier=req.source_identifier,
+            target_identifier=req.target_identifier,
+            relationship_type=rel.relationship_type,
+            role=rel.role,
+            confidence=rel.confidence,
+        )
+
+
+@router.get("/relationships/{collection_identifier}")
+def list_relationships(collection_identifier: str) -> list[schemas.RelationshipResponse]:
+    with session_scope() as session:
+        col = _get_collection(session, collection_identifier)
+        rels = session.execute(
+            select(Relationship).join(
+                Entity, Relationship.source_id == Entity.id
+            ).where(Entity.collection_id == col.id)
+        ).scalars().all()
+
+        return [
+            schemas.RelationshipResponse(
+                source_identifier="",  # Would need to fetch
+                target_identifier="",  # Would need to fetch
+                relationship_type=r.relationship_type,
+                role=r.role,
+                confidence=r.confidence,
+            )
+            for r in rels
+        ]
+
+
+@router.post("/chronology", response_model=schemas.ChronologyResponse)
+def add_chronology(req: schemas.AddChronologyRequest) -> schemas.ChronologyResponse:
+    with session_scope() as session:
+        col = _get_collection(session, req.collection_identifier)
+
+        entity = None
+        if req.entity_identifier:
+            entity = session.execute(
+                select(Entity).where(
+                    Entity.collection_id == col.id,
+                    Entity.identifier == req.entity_identifier
+                )
+            ).scalar_one_or_none()
+
+            if entity is None:
+                raise HTTPException(status_code=404, detail="entity not found")
+
+        event = dossier_svc.add_chronology_event(
+            session,
+            col,
+            req.event_date,
+            req.event_type,
+            req.description,
+            entity=entity,
+            source_file=None,
+        )
+
+        return schemas.ChronologyResponse(
+            event_date=event.event_date,
+            event_type=event.event_type,
+            description=event.description,
+            entity_identifier=req.entity_identifier,
+            confidence=event.confidence,
+        )
+
+
+@router.get("/chronology/{collection_identifier}")
+def list_chronology(
+    collection_identifier: str,
+    entity_identifier: str | None = None,
+) -> list[schemas.ChronologyResponse]:
+    with session_scope() as session:
+        col = _get_collection(session, collection_identifier)
+
+        query = select(Chronology).where(Chronology.collection_id == col.id)
+
+        if entity_identifier:
+            entity = session.execute(
+                select(Entity).where(
+                    Entity.collection_id == col.id,
+                    Entity.identifier == entity_identifier
+                )
+            ).scalar_one_or_none()
+
+            if entity:
+                query = query.where(Chronology.entity_id == entity.id)
+
+        events = session.execute(
+            query.order_by(Chronology.event_date)
+        ).scalars().all()
+
+        return [
+            schemas.ChronologyResponse(
+                event_date=e.event_date,
+                event_type=e.event_type,
+                description=e.description,
+                entity_identifier=entity_identifier,
+                confidence=e.confidence,
+            )
+            for e in events
         ]
