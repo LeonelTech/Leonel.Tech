@@ -178,3 +178,44 @@ class ChronologyResponse(BaseModel):
     description: str
     entity_identifier: str | None = None
     confidence: str = "unverified"
+
+
+# === Phase 7: Transcription ===
+
+
+class TranscriptionRequest(BaseModel):
+    file_identifier: str
+    language: str = "pt"
+
+
+class TranscriptionSegment(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionResponse(BaseModel):
+    file_identifier: str
+    text: str
+    language: str
+    segments: list[TranscriptionSegment]
+    confidence: float
+
+
+class SpeakerDiarizationRequest(BaseModel):
+    file_identifier: str
+    num_speakers: int | None = None
+
+
+class SpeakerSegment(BaseModel):
+    speaker: int
+    start: float
+    end: float
+    text: str
+
+
+class DiarizationResponse(BaseModel):
+    file_identifier: str
+    segments: list[SpeakerSegment]
+    total_speech_duration: float
+    num_speakers_detected: int

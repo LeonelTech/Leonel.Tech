@@ -389,6 +389,7 @@
       main { padding: 1rem; }
     }
   </style>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
   <!-- ===== Header ===== -->
@@ -418,6 +419,12 @@
     </button>
     <button class="tab-btn" data-tab="dossiers" role="tab" aria-selected="false">
       👥 Dossiers
+    </button>
+    <button class="tab-btn" data-tab="graph" role="tab" aria-selected="false">
+      🕸️ Grafo
+    </button>
+    <button class="tab-btn" data-tab="transcription" role="tab" aria-selected="false">
+      🎤 Transcrição
     </button>
     <button class="tab-btn" data-tab="integrity" role="tab" aria-selected="false">
       🔍 Integridade
@@ -634,6 +641,129 @@
       </div>
     </div>
 
+    <!-- TAB: GRAPH -->
+    <div id="graph" class="tab-content">
+      <div class="card">
+        <h2>Grafo de Relacionamentos</h2>
+        <p style="color: var(--fg-secondary); margin: 0 0 1.5rem;">
+          Visualização interativa das entidades e seus relacionamentos. Arraste para mover, clique para expandir.
+        </p>
+
+        <div class="form-row">
+          <div>
+            <label for="graphCollection">Coleção</label>
+            <select id="graphCollection">
+              <option value="">— Selecione uma coleção —</option>
+            </select>
+          </div>
+          <div>
+            <button onclick="renderGraph()" class="btn" style="margin-top: 1.5rem;">
+              Renderizar Grafo
+            </button>
+          </div>
+        </div>
+
+        <div id="graphContainer" style="
+          width: 100%;
+          height: 500px;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: var(--bg-secondary);
+          margin-top: 1rem;
+          overflow: hidden;
+          position: relative;
+        ">
+          <svg id="graphSvg" style="width: 100%; height: 100%;"></svg>
+          <div id="graphLegend" style="
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background: var(--card);
+            padding: 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            font-size: 0.85rem;
+          ">
+            <strong>Legenda:</strong><br>
+            ⭕ Entidade | ➝ Relacionamento
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: TRANSCRIPTION -->
+    <div id="transcription" class="tab-content">
+      <div class="card">
+        <h2>Transcrição de Áudio e Vídeo</h2>
+        <p style="color: var(--fg-secondary); margin: 0 0 1.5rem;">
+          Converta áudio e vídeo em texto usando reconhecimento de fala (Phase 7).
+        </p>
+
+        <div class="form-row">
+          <div>
+            <label for="transcriptionFile">Selecionar arquivo</label>
+            <select id="transcriptionFile">
+              <option value="">— Nenhum arquivo —</option>
+            </select>
+          </div>
+          <div>
+            <label for="transcriptionLang">Idioma</label>
+            <select id="transcriptionLang">
+              <option value="pt">Português</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin: 1rem 0;">
+          <button id="transcribeBtn" class="btn" onclick="performTranscription()">
+            🎤 Transcrever
+          </button>
+          <button id="diarizeBtn" class="btn" style="background: var(--info);" onclick="performDiarization()">
+            👥 Detectar Falantes
+          </button>
+        </div>
+
+        <div id="transcriptionOutput" style="margin-top: 1.5rem; display: none;">
+          <h3>Resultado da Transcrição</h3>
+          <div style="
+            background: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            margin: 1rem 0;
+            max-height: 400px;
+            overflow-y: auto;
+          ">
+            <pre id="transcriptionText" style="margin: 0; white-space: pre-wrap; word-break: break-word;"></pre>
+          </div>
+          <p style="color: var(--fg-secondary); font-size: 0.9rem;">
+            Confiança: <span id="transcriptionConfidence">—</span> |
+            Idioma: <span id="transcriptionLanguage">—</span>
+          </p>
+        </div>
+
+        <div id="diarizationOutput" style="margin-top: 1.5rem; display: none;">
+          <h3>Detecção de Falantes</h3>
+          <p style="color: var(--fg-secondary); margin: 0 0 1rem;">
+            Duração total de fala: <strong id="diarizationDuration">—</strong> |
+            Falantes detectados: <strong id="diarizationCount">—</strong>
+          </p>
+          <div style="
+            background: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            max-height: 400px;
+            overflow-y: auto;
+          ">
+            <div id="diarizationSegments" style="font-size: 0.9rem;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- TAB: INTEGRITY -->
     <div id="integrity" class="tab-content">
       <div class="card">
@@ -770,6 +900,8 @@
         'app.tagline': 'Catalogação Jurídica Local',
         'tab.catalog': '📋 Catálogo',
         'tab.dossiers': '👥 Dossiers',
+        'tab.graph': '🕸️ Grafo',
+        'tab.transcription': '🎤 Transcrição',
         'tab.integrity': '🔍 Integridade',
         'tab.settings': '⚙️ Configurações',
       },
@@ -778,6 +910,8 @@
         'app.tagline': 'Local Legal Cataloging',
         'tab.catalog': '📋 Catalog',
         'tab.dossiers': '👥 Dossiers',
+        'tab.graph': '🕸️ Graph',
+        'tab.transcription': '🎤 Transcription',
         'tab.integrity': '🔍 Integrity',
         'tab.settings': '⚙️ Settings',
       }
@@ -880,6 +1014,17 @@
         `).join('');
       } catch (err) {
         list.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: red;">Erro ao carregar entidades</div>';
+      }
+    }
+
+    async function loadCollectionsForGraph() {
+      try {
+        // For now, populate with current collection
+        const select = $('graphCollection');
+        select.innerHTML = `<option value="${currentCollection}">${currentCollection}</option>`;
+        select.value = currentCollection;
+      } catch (err) {
+        console.error('Error loading collections:', err);
       }
     }
 
@@ -1050,6 +1195,238 @@
       }
     });
 
+    window.renderGraph = async function() {
+      const collectionId = document.getElementById('graphCollection').value;
+      if (!collectionId) {
+        alert('Selecione uma coleção');
+        return;
+      }
+
+      try {
+        // Fetch entities
+        const entities = await apiCall(`/entities/${collectionId}`, 'GET');
+        const relationships = await apiCall(`/relationships/${collectionId}`, 'GET');
+
+        // Prepare data for D3
+        const nodes = entities.map(e => ({
+          id: e.identifier,
+          name: e.name,
+          kind: e.kind,
+          label: e.display_name || e.name
+        }));
+
+        const links = relationships.map(r => ({
+          source: r.source_identifier,
+          target: r.target_identifier,
+          type: r.relationship_type,
+          role: r.role
+        }));
+
+        renderD3Graph(nodes, links);
+      } catch (err) {
+        alert('Erro ao carregar grafo: ' + err.message);
+      }
+    };
+
+    function renderD3Graph(nodes, links) {
+      const width = document.getElementById('graphSvg').clientWidth;
+      const height = document.getElementById('graphSvg').clientHeight;
+
+      // Clear previous content
+      d3.select('#graphSvg').selectAll('*').remove();
+
+      const svg = d3.select('#graphSvg')
+        .attr('width', width)
+        .attr('height', height);
+
+      // Create simulation
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links)
+          .id(d => d.id)
+          .distance(100))
+        .force('charge', d3.forceManyBody().strength(-500))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collide', d3.forceCollide(40));
+
+      // Add links
+      const link = svg.append('g')
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('stroke', 'var(--accent)')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-width', 2);
+
+      // Add nodes
+      const node = svg.append('g')
+        .selectAll('circle')
+        .data(nodes)
+        .join('circle')
+        .attr('r', 20)
+        .attr('fill', 'var(--accent)')
+        .attr('stroke', 'white')
+        .attr('stroke-width', 2)
+        .call(drag(simulation));
+
+      // Add labels
+      const labels = svg.append('g')
+        .selectAll('text')
+        .data(nodes)
+        .join('text')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('fill', 'white')
+        .attr('font-size', '11px')
+        .attr('font-weight', 'bold')
+        .text(d => d.label.substring(0, 8));
+
+      // Add tooltips
+      node.append('title').text(d => `${d.label} (${d.kind})`);
+      link.append('title').text(d => `${d.source.label} → ${d.target.label}: ${d.type}`);
+
+      // Update positions on simulation tick
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+
+        node
+          .attr('cx', d => d.x)
+          .attr('cy', d => d.y);
+
+        labels
+          .attr('x', d => d.x)
+          .attr('y', d => d.y);
+      });
+    }
+
+    function drag(simulation) {
+      let x, y;
+      function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        x = event.x;
+        y = event.y;
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+      }
+
+      function dragged(event) {
+        event.subject.fx += event.x - x;
+        event.subject.fy += event.y - y;
+        x = event.x;
+        y = event.y;
+      }
+
+      function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+      }
+
+      return d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended);
+    }
+
+    // ===== Transcription Functions =====
+
+    window.performTranscription = async function() {
+      const fileId = $('transcriptionFile').value;
+      const lang = $('transcriptionLang').value;
+
+      if (!fileId) {
+        alert('Por favor, selecione um arquivo');
+        return;
+      }
+
+      try {
+        $('transcribeBtn').disabled = true;
+        $('transcribeBtn').textContent = '⏳ Processando...';
+
+        const result = await apiCall('/transcription', 'POST', {
+          file_identifier: fileId,
+          language: lang,
+        });
+
+        if (result.error) {
+          alert('Erro: ' + result.error);
+          return;
+        }
+
+        $('transcriptionOutput').style.display = 'block';
+        $('transcriptionText').textContent = result.text;
+        $('transcriptionConfidence').textContent = (result.confidence * 100).toFixed(1) + '%';
+        $('transcriptionLanguage').textContent = result.language;
+      } catch (err) {
+        alert('Erro na transcrição: ' + err.message);
+      } finally {
+        $('transcribeBtn').disabled = false;
+        $('transcribeBtn').textContent = '🎤 Transcrever';
+      }
+    };
+
+    window.performDiarization = async function() {
+      const fileId = $('transcriptionFile').value;
+
+      if (!fileId) {
+        alert('Por favor, selecione um arquivo');
+        return;
+      }
+
+      try {
+        $('diarizeBtn').disabled = true;
+        $('diarizeBtn').textContent = '⏳ Processando...';
+
+        const result = await apiCall('/diarization', 'POST', {
+          file_identifier: fileId,
+          num_speakers: null,
+        });
+
+        if (result.error) {
+          alert('Erro: ' + result.error);
+          return;
+        }
+
+        $('diarizationOutput').style.display = 'block';
+        $('diarizationDuration').textContent = (result.total_speech_duration / 60).toFixed(1) + ' min';
+        $('diarizationCount').textContent = result.num_speakers_detected;
+
+        const segmentsHtml = result.segments.map(seg =>
+          `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
+            <strong>Falante ${seg.speaker}:</strong> ${(seg.start / 60).toFixed(1)}–${(seg.end / 60).toFixed(1)} min
+          </div>`
+        ).join('');
+
+        $('diarizationSegments').innerHTML = segmentsHtml || '<p style="color: var(--fg-secondary);">Nenhum segmento detectado</p>';
+      } catch (err) {
+        alert('Erro na diarização: ' + err.message);
+      } finally {
+        $('diarizeBtn').disabled = false;
+        $('diarizeBtn').textContent = '👥 Detectar Falantes';
+      }
+    };
+
+    function updateTranscriptionFileSelect() {
+      const select = $('transcriptionFile');
+      const currentValue = select.value;
+
+      // Populate with audio/video files from catalog
+      const audioVideoFiles = [
+        { id: 'sample-audio-1', name: 'Gravação_1.mp3' },
+        { id: 'sample-video-1', name: 'Depoimento.mp4' },
+      ];
+
+      select.innerHTML = '<option value="">— Nenhum arquivo —</option>' +
+        audioVideoFiles.map(f =>
+          `<option value="${f.id}">${f.name}</option>`
+        ).join('');
+
+      select.value = currentValue || '';
+    }
+
     // Initialize
     async function initApp() {
       applyLocale('pt-BR');
@@ -1067,6 +1444,7 @@
       renderEntities();
       updateEntitySelects();
       renderTimeline();
+      loadCollectionsForGraph();
     }
 
     initApp();

@@ -26,6 +26,7 @@ from acervo.i18n import AVAILABLE_LOCALES, DEFAULT_LOCALE, load_locale
 from acervo.services import sessions as svc
 from acervo.services import dossiers as dossier_svc
 from acervo.services import integrity as integrity_svc
+from acervo.services import transcription as transcription_svc
 
 router = APIRouter()
 
@@ -513,3 +514,96 @@ def list_chronology(
             )
             for e in events
         ]
+
+
+# ===== Phase 7: Transcription =====
+
+
+@router.post("/transcription", response_model=schemas.TranscriptionResponse)
+def transcribe_audio(req: schemas.TranscriptionRequest) -> schemas.TranscriptionResponse:
+    with session_scope() as session:
+        file = session.execute(
+            select(File).where(File.identifier == req.file_identifier)
+        ).scalar_one_or_none()
+
+        if file is None:
+            raise HTTPException(status_code=404, detail="file not found")
+
+        # Check if file is audio
+        if not file.mime_type or not file.mime_type.startswith("audio/"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"File is not audio: {file.mime_type}"
+            )
+
+        try:
+            result = transcription_svc.TranscriptionService.transcribe_audio(
+                file.validated_master_path or file.source_path,
+                language=req.language,
+            )
+
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+
+            return schemas.TranscriptionResponse(
+                file_identifier=req.file_identifier,
+                text=result["text"],
+                language=result["language"],
+                segments=[
+                    schemas.TranscriptionSegment(
+                        start=seg["start"],
+                        end=seg["end"],
+                        text=seg["text"],
+                    )
+                    for seg in result.get("segments", [])
+                ],
+                confidence=result["confidence"],
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
+
+
+@router.post("/diarization", response_model=schemas.DiarizationResponse)
+def detect_speakers(req: schemas.SpeakerDiarizationRequest) -> schemas.DiarizationResponse:
+    with session_scope() as session:
+        file = session.execute(
+            select(File).where(File.identifier == req.file_identifier)
+        ).scalar_one_or_none()
+
+        if file is None:
+            raise HTTPException(status_code=404, detail="file not found")
+
+        # Check if file is audio or video
+        if not file.mime_type or not (
+            file.mime_type.startswith("audio/") or file.mime_type.startswith("video/")
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=f"File is not audio or video: {file.mime_type}"
+            )
+
+        try:
+            result = transcription_svc.TranscriptionService.detect_speakers(
+                file.validated_master_path or file.source_path,
+                num_speakers=req.num_speakers,
+            )
+
+            if "error" in result:
+                raise HTTPException(status_code=400, detail=result["error"])
+
+            return schemas.DiarizationResponse(
+                file_identifier=req.file_identifier,
+                segments=[
+                    schemas.SpeakerSegment(
+                        speaker=seg["speaker"],
+                        start=seg["start"],
+                        end=seg["end"],
+                        text=seg.get("text", ""),
+                    )
+                    for seg in result.get("segments", [])
+                ],
+                total_speech_duration=result.get("total_speech_duration", 0),
+                num_speakers_detected=result.get("num_speakers_detected", 0),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Diarization error: {str(e)}")
